@@ -48,6 +48,32 @@
       gap: 12px 15px;
       border-bottom: 2px dashed #2a4053;
     }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .compass-icon {
+      font-size: clamp(1.8rem, 6vw, 2.5rem);
+      filter: none; /* Убираем все фильтры */
+      background: none; /* Убираем градиентный фон */
+      -webkit-background-clip: unset;
+      -webkit-text-fill-color: initial;
+      background-clip: unset;
+      color: #ffd966; /* Яркий желтый цвет для компаса */
+      display: inline-block;
+      transform: rotate(-5deg);
+      transition: transform 0.3s ease;
+      text-shadow: 0 2px 8px #000000cc; /* Добавляем четкую тень */
+      line-height: 1;
+    }
+    
+    .compass-icon:hover {
+      transform: rotate(0deg) scale(1.1);
+    }
 
     .app-header h1 {
       font-size: clamp(1.6rem, 5vw, 2.2rem);
@@ -299,9 +325,13 @@
 </head>
 <body>
   <div class="chat-app">
-    <!-- шапка: название и сокращённый ключ (для красоты) -->
+    <!-- шапка: значок компаса, название и сокращённый ключ -->
     <div class="app-header">
-      <h1>🧭 Компас профессий</h1>
+      <div class="header-left">
+        <span class="compass-icon">🧭</span>
+        <h1>Компас профессий</h1>
+      </div>
+      <div class="key-badge">профориентация · gemini</div>
     </div>
 
     <!-- окно переписки -->
@@ -555,6 +585,7 @@
     – Добавлено ограничение длины ответа: до 10 предложений.
     – Добавлен контекст диалога: ассистент помнит всю переписку (до 20 последних сообщений).
     – Название изменено на "Компас профессий".
+    – Добавлен четкий значок компаса слева от заголовка с ярким желтым цветом и тенью.
   -->
 </body>
 </html>
