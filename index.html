@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>Profileo · профориентация</title>
+  <title>Компас профессий</title>
   <style>
     /* ===== СБРОС И БАЗОВЫЕ НАСТРОЙКИ (адаптив с первых строк) ===== */
     * {
@@ -301,8 +301,7 @@
   <div class="chat-app">
     <!-- шапка: название и сокращённый ключ (для красоты) -->
     <div class="app-header">
-      <h1>🧭 Profileo</h1>
-      <span class="key-badge" title="sk_ajKGydMtB6CldDbDulOd004cG6AkboqG">🔑 sk_ajKG...boqG</span>
+      <h1>🧭 Компас профессий</h1>
     </div>
 
     <!-- окно переписки -->
@@ -326,7 +325,7 @@
         </svg>
       </button>
     </div>
-    <div class="footer-tip">* профориентация · gemini-fast · история не хранится</div>
+    <div class="footer-tip">* профориентация · gemini-fast · диалог сохраняется (до 20 сообщений) · ответы до 10 предложений</div>
   </div>
 
   <script>
@@ -336,14 +335,24 @@
       const MODEL = 'gemini-fast';
       // ТВОЙ API КЛЮЧ (полностью рабочий)
       const API_KEY = 'sk_ajKGydMtB6CldDbDulOd004cG6AkboqG';
+      
+      // Максимальное количество сообщений в контексте (чтобы не перегружать API)
+      const MAX_CONTEXT_MESSAGES = 20; // 10 пар "пользователь-ассистент"
+
+      // Системный промт с ограничением длины (до 10 предложений)
+      const SYSTEM_PROMPT = 'Ты — профессиональный консультант по профориентации для школьников и подростков. Отвечай дружелюбно, кратко и по делу. ВАЖНО: твой ответ должен содержать не более 10 предложений и быть максимально понятным. Если вопрос требует больше информации, предложи уточнить или задай наводящий вопрос.';
 
       // DOM-элементы
       const chatContainer = document.getElementById('chatWindow');
       const textarea = document.getElementById('msgInput');
       const sendButton = document.getElementById('sendBtn');
 
-      // состояние загрузки
+      // Состояние загрузки
       let isLoading = false;
+      
+      // Массив для хранения истории сообщений (контекст)
+      // Формат: { role: 'user' или 'assistant', content: 'текст' }
+      let messageHistory = [];
 
       // --- адаптивная высота поля ввода ---
       function resizeTextarea() {
@@ -354,15 +363,28 @@
       }
 
       // --- добавить сообщение (role: "user" или "assistant") ---
-      function addMessage(role, text) {
+      function addMessage(role, text, addToHistory = true) {
+        // Добавляем в DOM
         const row = document.createElement('div');
         row.className = `msg-row ${role}`;
         const bubble = document.createElement('div');
         bubble.className = 'msg-bubble';
-        bubble.textContent = text;   // безопасно
+        bubble.textContent = text;
         row.appendChild(bubble);
         chatContainer.appendChild(row);
-        // прокрутить вниз
+        
+        // Добавляем в историю, если нужно
+        if (addToHistory) {
+          messageHistory.push({ role, content: text });
+          
+          // Ограничиваем размер истории (удаляем самые старые сообщения, но сохраняем системный промт)
+          if (messageHistory.length > MAX_CONTEXT_MESSAGES) {
+            // Удаляем 2 самых старых сообщения (пару user+assistant)
+            messageHistory.splice(0, 2);
+          }
+        }
+        
+        // Прокрутить вниз
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
 
@@ -388,26 +410,38 @@
       }
 
       // --- блокировка/разблокировка ---
-      function setBusy( busy ) {
+      function setBusy(busy) {
         isLoading = busy;
         sendButton.disabled = busy;
         textarea.disabled = busy;
       }
 
-      // --- запрос к Pollinations (Gemini) с ТВОИМ КЛЮЧОМ ---
+      // --- подготовка сообщений для API (системный промт + история) ---
+      function prepareMessagesForAPI(userMessage) {
+        const messages = [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...messageHistory,  // вся предыдущая история
+          { role: 'user', content: userMessage }  // новое сообщение
+        ];
+        
+        return messages;
+      }
+
+      // --- запрос к Pollinations (Gemini) с контекстом ---
       async function fetchAssistantAnswer(userMessage) {
+        // Подготавливаем сообщения с историей
+        const apiMessages = prepareMessagesForAPI(userMessage);
+        
         const body = {
           model: MODEL,
-          messages: [
-            { role: 'user', content: userMessage }
-          ]
+          messages: apiMessages
         };
 
         try {
           const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${API_KEY}`,   // ключ в точности как просили
+              'Authorization': `Bearer ${API_KEY}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
@@ -448,8 +482,8 @@
         const userText = textarea.value.trim();
         if (userText === '' || isLoading) return;
 
-        // 1. сообщение пользователя
-        addMessage('user', userText);
+        // 1. сообщение пользователя (добавляем в историю)
+        addMessage('user', userText, true);
 
         // 2. очистить поле
         textarea.value = '';
@@ -461,18 +495,20 @@
         // 4. заблокировать
         setBusy(true);
 
-        // 5. запрос к API
+        // 5. запрос к API с контекстом
         try {
           const reply = await fetchAssistantAnswer(userText);
           hideTypingIndicator();
-          addMessage('assistant', reply);
+          // Добавляем ответ ассистента в историю
+          addMessage('assistant', reply, true);
         } catch (error) {
           hideTypingIndicator();
           let errorMsg = '😥 Не удалось получить ответ. Попробуй ещё раз.';
           if (error.message) {
             errorMsg = `⚠️ ${error.message.slice(0, 200)}`;
           }
-          addMessage('assistant', errorMsg);
+          // Ошибку тоже добавляем в историю? Лучше не надо, чтобы не портить контекст
+          addMessage('assistant', errorMsg, false);
         } finally {
           setBusy(false);
           textarea.focus();
@@ -495,6 +531,9 @@
       window.addEventListener('load', () => {
         textarea.focus();
         resizeTextarea();
+        // Инициализируем историю пустой (приветствие не добавляем в историю,
+        // чтобы оно не дублировалось при каждом запросе)
+        messageHistory = [];
       });
 
       // на случай ресайза окна (телефон/планшет)
@@ -513,6 +552,9 @@
     – Тематика: профориентация для школьников. Помогает узнать о профессиях.
     – Минимум лишнего: только чат, поле ввода, кнопка. 
     – Работает сразу в браузере без дополнительных действий.
+    – Добавлено ограничение длины ответа: до 10 предложений.
+    – Добавлен контекст диалога: ассистент помнит всю переписку (до 20 последних сообщений).
+    – Название изменено на "Компас профессий".
   -->
 </body>
 </html>
